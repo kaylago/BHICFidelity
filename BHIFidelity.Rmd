@@ -209,56 +209,67 @@ turtles2<-as.data.frame(turtles %>% group_by(year,unique_id,date,mag_inclination
 
 ```{r}
 library(dplyr)
-turtles_yearbybeach<-merge(turtles1,turtles2,all.x=T,all.y=T)
-turtles_yearbybeach<-arrange(turtles_yearbybeach,unique_id)
-turtles_yearbybeach[1:5,]
+turtlesmaster<-merge(turtles1,turtles2,all.x=T,all.y=T)
+turtlesmaster<-arrange(turtlesmaster,unique_id)
+turtlesmaster[1:5,]
 ```
 
 
 
 ```{r}
-turtles3<-as.data.frame(turtles %>% group_by(unique_id,mag_inclination,mag_intensity) %>% summarize(n_south=mean(beach == "S")))
-turtles4<-as.data.frame(turtles %>% group_by(unique_id,mag_inclination,mag_intensity) %>% summarize(n_east=mean(beach == "E")))
-turtles_idbybeach<-merge(turtles3,turtles4,all.x=T,all.y=T)
-turtles_idbybeach[1:5,]
+#turtles3<-as.data.frame(turtles %>% group_by(unique_id,mag_inclination,mag_intensity) %>% summarize(n_south=mean(beach == "S")))
+#turtles4<-as.data.frame(turtles %>% group_by(unique_id,mag_inclination,mag_intensity) %>% #summarize(n_east=mean(beach == "E")))
+#turtles_idbybeach<-merge(turtles3,turtles4,all.x=T,all.y=T)
+#turtles_idbybeach[1:5,]
 ```
 
 ```{r}
-turtles_yearbybeach<-turtles_yearbybeach[turtles_yearbybeach$unique_id!="798",]
-turtles_yearbybeach<-droplevels(turtles_yearbybeach,"798")
-turtles_idbybeach<-turtles_idbybeach[turtles_idbybeach$unique_id!="798",]
-turtles_idbybeach<-droplevels(turtles_idbybeach,"798")
+turtlesmaster<-turtlesmaster[turtlesmaster$unique_id!="798",]
+turtlesmaster<-droplevels(turtlesmaster,"798")
+#turtles_idbybeach<-turtles_idbybeach[turtles_idbybeach$unique_id!="798",]
+#turtles_idbybeach<-droplevels(turtles_idbybeach,"798")
 ```
 
 
 
 ```{r}
 library(dplyr)
-turtles5<-as.data.frame(turtles %>% count(unique_id,beach, year, sort = TRUE))
-turtles5$year<-as.numeric(turtles5$year)
-turtles5<-arrange(turtles5,desc(unique_id))
-turtles5<-turtles5[turtles5$unique_id!="798",]
-turtles5<-droplevels(turtles5,"798")
-turtles5[1:5,]
+turtlescounts<-as.data.frame(turtles %>% count(unique_id,beach, year, sort = TRUE))
+turtlescounts$year<-as.numeric(turtlescounts$year)
+turtlescounts<-arrange(turtlescounts,desc(unique_id))
+turtlescounts<-turtlescounts[turtlescounts$unique_id!="798",]
+turtlescounts<-droplevels(turtlescounts,"798")
+#turtles5[1:5,]
 ```
 
 1. Add "beach transition" columns -works
 ```{r}
 library(dplyr)
-turtles_yearbybeach<-mutate(turtles_yearbybeach,s_to_e=rep(NA))
-turtles_yearbybeach<-mutate(turtles_yearbybeach,e_to_s=rep(NA))
-turtles_yearbybeach<-mutate(turtles_yearbybeach,s_to_s=rep(NA))
-turtles_yearbybeach<-mutate(turtles_yearbybeach,e_to_e=rep(NA))
+turtlesmaster<-mutate(turtlesmaster,s_to_e=rep(NA))
+turtlesmaster<-mutate(turtlesmaster,e_to_s=rep(NA))
+turtlesmaster<-mutate(turtlesmaster,s_to_s=rep(NA))
+turtlesmaster<-mutate(turtlesmaster,e_to_e=rep(NA))
 ```
 
 2. identify when/where the first nest laid by a turtle is - works
 
 ```{r}
 library(data.table)
-turtles_yearbybeach<-as.data.table(turtles_yearbybeach)
-turtles_yearbybeach[,id_rank:=rank(date,ties.method="first"),by=unique_id]
-turtles_yearbybeach<-as.data.frame(turtles_yearbybeach)
+turtlesmaster<-as.data.table(turtlesmaster)
+turtlesmaster[,id_rank:=rank(date,ties.method="first"),by=unique_id]
+turtlesmaster<-as.data.frame(turtlesmaster)
+str(turtlesmaster)
 ```
+
+
+```{r}
+turtlesmaster$unique_id<-as.character(turtlesmaster$unique_id)
+turtlesmaster$n_east<-as.logical(turtlesmaster$n_east)
+turtlesmaster$n_south<-as.logical(turtlesmaster$n_south)
+turtlesmaster$id_rank<-as.numeric(turtlesmaster$id_rank)
+str(turtlesmaster)
+```
+
 
 
 
@@ -279,6 +290,23 @@ If n_south==1 for id_rank==j+1 and id_rank==j, fill s_to_s with a 1, and s_to_e 
 If n_south==0, for id_rank==j+1 but n_south==1 for id_rank=j fill s_to_e with a 1, and s_to_s with a 0
 
 ```{r}
+t2<-subset(turtlesmaster,unique_id=="2")
+t2$id_rank<-as.numeric(t2$id_rank)
+t2$e_to_s<-ifelse(t2$id_rank==2, t2$e_to_s[is.na(t2$e_to_s)]<-"1",t2$e_to_s[is.na(t2$e_to_s)]<-"0")
+i<-t2$id_rank
+```
+
+
+##Counters
+```{r}
+
+write.csv(turtlesmaster,"BHICFidelityData.csv")
+
+
+
+```
+
+```{r}
 ##FidelityFxn_E<- function(){
 #for (i == 1 ) {
   #for (id_rank == i+1 and id_rank == i), {ifelse (n_east==1, [is.na(turtles_yearbybeach$e_to_e)] <- 1, [is.na(turtles_yearbybeach$e_to_e)] <- 0)}
@@ -286,16 +314,19 @@ If n_south==0, for id_rank==j+1 but n_south==1 for id_rank=j fill s_to_e with a 
 #}
 
 
-FidelityFxn_E<- function(){
-  if (turtles_yearbybeach$id_rank == 1 && turtles_yearbybeach$id_rank == 2) {ifelse(turtles_yearbybeach$n_east==1, turtles_yearbybeach[is.na(turtles_yearbybeach$e_to_e)] <- 1, turtles_yearbybeach$e_to_e[is.na(turtles_yearbybeach$e_to_e)] <- 0)}
-}
+#FidelityFxn_E<- function(df){
+ # if (turtles_yearbybeach$id_rank == 1 && turtles_yearbybeach$id_rank == 2) {ifelse(turtles_yearbybeach$n_east==1, turtles_yearbybeach[is.na(turtles_yearbybeach$e_to_e)] <- 1, turtles_yearbybeach$e_to_e[is.na(turtles_yearbybeach$e_to_e)] <- 0)}
+#}
 
-FidelityFxn_E()
+#turtles_yearbybeach=lapply(turtles_yearbybeach,FidelityFxn_E)
+
+turtlesfxn<- function() { for i in seq_along(turtlesmaster) {ifelse(turtlesmaster$id_rank==1 & turtlesmaster$n_east=="TRUE", ifelse(turtlesmaster$id_rank>=2 & turtlesmaster$n_east=="TRUE", turtlesmaster$e_to_e[is.na(turtlesmaster$e_to_e)] <- "TRUE",turtlesmaster$e_to_e[is.na(turtlesmaster$e_to_e)]<-"FALSE" ),turtlesmaster$e_to_s[is.na(turtlesmaster$e_to_s)]<- "TRUE")}}
+
 
 ```
 
 ```{r}
-str(turtles_yearbybeach)
+turtlesmaster<-
 ```
 
 ```{r}
