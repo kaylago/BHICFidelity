@@ -1,0 +1,455 @@
+---
+title: "BHI Fidelity"
+author: "Kayla Goforth"
+date: "September 14, 2017"
+output:
+  word_document: default
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+#BALD HEAD ISLAND LOGGERHEAD NESTING FIDELITY
+
+##Background
+
+-Turtle nest monitoring occurs on every beach in the southeastern united states, but tagging only occurs on a select few. 
+
+-Bald Head Island, has been tagging turtles since 1991, and monitoring nesting since 1986. 
+
+-Turtles are identified by PIT (passive integrated transponder) and two flipper tags.
+
+
+
+
+
+-Sea turtle tagging studies were the first method by which natal homing was displayed - females tagged one year would return in subsequent years to nest again.
+
+-Natal homing is further supported through recent genetic analyses using mtDNA. Populations along the east coast of the U.S., Caribbean, and Mediterranean are delineated by significantly different mtDNA haplotype frequencies. 
+
+-The geomagnetic imprinting hypothesis states that sea turtles (and salmon, and possibly eels), imprint on the geomagnetic field at the location in which they incubate, retain this information, and use it to navigate back upon reaching sexual maturity.
+
+-Magnetic field lines in the Atlantic Ocean run perpendicular to the east coast of the U.S., which seems like a prime set-up for natal homing. One theory for how sea turtles find their natal beaches is that they swim north or south until they hit (one or both of) their desired magnetic field parameters, and then swim towards shore, employing fine-scale navigational mechanisms.
+
+-Following along the lines of this theory, it would seem that it would be easier, navigationally, for a turtle to locate a beach that was running north to south (facing east) as opposed to a beach running east to west (facing north or south), because they would be more likely to find a beach perpendicular to the field lines, as opposed to one running parallel to the field lines.
+
+-As such, the east facing beach of Bald Head Island should exhibit higher fidelity by nesting females, while the south facing beach should have low fidelity, with a higher proportion of one-time nesters.
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+getwd()
+```
+
+
+##Mapping Bald Head Island
+```{r}
+Points<-read.csv("C:/Users/kkmgo/OneDrive/Documents/BHI Fidelity Study/2017 Points.csv",header=T)
+```
+
+```{r}
+library(rworldmap)
+library(rworldxtra)
+library(ggmap)
+library(ggplot2)
+ncmap <- get_map(location=c(lon= -79.796,lat= 34.971),zoom=7)
+ncmap
+ncmap.bhi <- ggmap(ncmap, extent ="normal")+geom_point(x=-77.96,y=33.84)+geom_text(x=-77.5,y=33.5, label="BHI")+  xlab("Longitude")+ylab("Latitude")
+ncmap.bhi
+```
+
+
+```{r}
+library(rworldmap)
+library(rworldxtra)
+library(ggmap)
+bhimap <- get_map(location=c(lon= -77.92,lat= 33.86),zoom=12)
+bhimap
+bhimap.nests <- ggmap(bhimap, extent ="normal")+
+  geom_point(aes(x=long, y=lat), data=Points, alpha=.5)+
+  xlab("Longitude")+ylab("Latitude")
+bhimap.nests
+```
+
+##Visualizing the Data
+```{r}
+bhi_nests.1<-read.csv("C:/Users/kkmgo/OneDrive/Documents/BHI Fidelity Study/Raw Data_BHIC_1986-2001.csv",header=T)
+```
+
+```{r}
+bhi_nests.1$beach<-NA
+```
+
+```{r}
+bhi_nests.1$location<-as.numeric(as.character(bhi_nests.1$location))
+```
+
+
+```{r}
+bhi_nests.1$beach<-ifelse(bhi_nests.1$location < 280, "E", ifelse(bhi_nests.1$location < 284, "S","W"))
+```
+
+```{r}
+drops<- c("location")
+bhi_nests.1<-bhi_nests.1[ , !(names(bhi_nests.1) %in% drops)]
+```
+
+```{r}
+bhi_nests.2<-read.csv("C:/Users/kkmgo/OneDrive/Documents/BHI Fidelity Study/Raw Data_BHIC_2002-2017.csv",header=T)
+```
+
+
+```{r}
+bhi_nests<-merge(bhi_nests.1,bhi_nests.2,all.x=TRUE,all.y=TRUE)
+```
+
+```{r}
+bhi_nests[1:5,]
+```
+
+```{r}
+bhi_nests<-bhi_nests[bhi_nests$beach!="W",]
+bhi_nests<-droplevels(bhi_nests,"W")
+counts<-table(bhi_nests$beach)
+counts
+```
+
+```{r}
+table(bhi_nests$year)
+```
+
+
+```{r}
+library(dplyr)
+nests<-bhi_nests %>% count(year,beach, sort = TRUE)
+nests<-nests %>% arrange(year)
+nests$year<-as.numeric(nests$year)
+nests[1:7,]
+```
+
+Total number of nests over all 30 years:
+```{r}
+sum(nests$n)
+```
+
+
+
+```{r}
+nestsdata <- data.frame(count=rep(nests$year,nests$n))
+```
+
+###Total Nests per Year:
+```{r}
+library(ggplot2)
+nestsplot <- ggplot(nestsdata,aes(count))
+nestsplot+geom_bar()+labs(x="year",y="number of nests")
+```
+
+
+###Total Nests per Beach, per Year
+```{r}
+library(ggplot2)
+beachplot <- ggplot(nests)
+beachplot+geom_bar(mapping = aes(x=year, y=n, fill=beach),stat="identity",position = "dodge")+labs(x="year",y="number of nests")
+```
+**kind of an ugly graph, does anyone know how to change the colors????
+
+
+
+##Modeling total number of nests per beach
+
+Let's try just beach (E,S,W), with a basic linear model...
+
+```{r}
+bhi_mod1<-lm(n~beach, data=nests)
+summary(bhi_mod1)
+anova(bhi_mod1)
+```
+
+Now let's add year in - turtles nest in cycles, loggerheads typically nest every other year, so (I think) it's important to consider, as certain years may have more neophytes than others, and this may affect where nesting occurs.
+
+```{r}
+bhi_mod2<-lm(n~beach*year, data=nests)
+summary(bhi_mod2)
+anova(bhi_mod2)
+```
+
+This is count data, so let's add in a Poisson model...
+```{r}
+nestsglm <- glm(n~year*beach, family=poisson(link=identity),data=nests)
+summary(nestsglm)
+```
+
+Interpretations of the models:
+
+-beach and year were both significant
+
+##Fidelity Model
+```{r}
+turtles<-read.csv("C:/Users/kkmgo/OneDrive/Documents/BHI Fidelity Study/BHI Tagging Data.csv",header=T)
+```
+
+```{r}
+turtles$beach<-ifelse(turtles$location < 280, "E", ifelse(turtles$location < 284, "S","W"))
+turtles<-turtles[turtles$beach!="W",]
+turtles<-droplevels(turtles,"W")
+turtles$unique_id <- 
+    as.numeric(as.factor(with(turtles, paste(PIT, LFF, RFF, sep="_"))))
+turtles$date<-as.Date(paste(turtles$year,turtles$date.laid,sep="/"),"%Y/%m/%d")
+turtles[1:5,]
+```
+
+```{r}
+library(dplyr)
+turtles1<-as.data.frame(turtles %>% group_by(year,unique_id,date,mag_inclination,mag_intensity) %>% summarize(n_east=mean(beach == "E"))) 
+turtles2<-as.data.frame(turtles %>% group_by(year,unique_id,date,mag_inclination,mag_intensity) %>% summarize(n_south=mean(beach == "S"))) 
+```
+
+```{r}
+library(dplyr)
+turtles_yearbybeach<-merge(turtles1,turtles2,all.x=T,all.y=T)
+turtles_yearbybeach<-arrange(turtles_yearbybeach,unique_id)
+turtles_yearbybeach[1:5,]
+```
+
+
+
+```{r}
+turtles3<-as.data.frame(turtles %>% group_by(unique_id,mag_inclination,mag_intensity) %>% summarize(n_south=mean(beach == "S")))
+turtles4<-as.data.frame(turtles %>% group_by(unique_id,mag_inclination,mag_intensity) %>% summarize(n_east=mean(beach == "E")))
+turtles_idbybeach<-merge(turtles3,turtles4,all.x=T,all.y=T)
+turtles_idbybeach[1:5,]
+```
+
+```{r}
+turtles_yearbybeach<-turtles_yearbybeach[turtles_yearbybeach$unique_id!="798",]
+turtles_yearbybeach<-droplevels(turtles_yearbybeach,"798")
+turtles_idbybeach<-turtles_idbybeach[turtles_idbybeach$unique_id!="798",]
+turtles_idbybeach<-droplevels(turtles_idbybeach,"798")
+```
+
+
+
+```{r}
+library(dplyr)
+turtles5<-as.data.frame(turtles %>% count(unique_id,beach, year, sort = TRUE))
+turtles5$year<-as.numeric(turtles5$year)
+turtles5<-arrange(turtles5,desc(unique_id))
+turtles5<-turtles5[turtles5$unique_id!="798",]
+turtles5<-droplevels(turtles5,"798")
+turtles5[1:5,]
+```
+
+1. Add "beach transition" columns -works
+```{r}
+library(dplyr)
+turtles_yearbybeach<-mutate(turtles_yearbybeach,s_to_e=rep(NA))
+turtles_yearbybeach<-mutate(turtles_yearbybeach,e_to_s=rep(NA))
+turtles_yearbybeach<-mutate(turtles_yearbybeach,s_to_s=rep(NA))
+turtles_yearbybeach<-mutate(turtles_yearbybeach,e_to_e=rep(NA))
+```
+
+2. identify when/where the first nest laid by a turtle is - works
+
+```{r}
+library(data.table)
+turtles_yearbybeach<-as.data.table(turtles_yearbybeach)
+turtles_yearbybeach[,id_rank:=rank(date,ties.method="first"),by=unique_id]
+turtles_yearbybeach<-as.data.frame(turtles_yearbybeach)
+```
+
+
+
+3. fill all transition columns with NA if id_rank of unique_id == 1 - working #NOT NEEDED
+```{r}
+#rank1_fxn1<-function(){ifelse(turtles_yearbybeach$id_rank==1, turtles_yearbybeach$s_to_e[is.na(turtles_yearbybeach$s_to_e)] <- 0 and turtles_yearbybeach$e_to_s[is.na(turtles_yearbybeach$e_to_s)] <- 0 and turtles_yearbybeach$e_to_e[is.na(turtles_yearbybeach$e_to_e)] <- 0 and turtles_yearbybeach$s_to_s[is.na(turtles_yearbybeach$s_to_s)] <- 0, turtles_yearbybeach$s_to_e<-NA and turtles_yearbybeach$e_to_s<-NA and turtles_yearbybeach$e_to_e<-NA and turtles_yearbybeach$s_to_s<-NA)}
+#turtles_yearbybeach$s_to_e<-rank1_fxn1()
+#turtles_yearbybeach$e_to_s<-rank1_fxn1()
+#turtles_yearbybeach$e_to_e<-rank1_fxn1()
+#turtles_yearbybeach$s_to_s<-rank1_fxn1()
+```
+
+
+3. identify the next nest laid by a turtle - NOT WORKING!!!!!!!!!
+If n_east == 1 for id_rank==j+1 and id_rank==j then, fill e_to_e with a 1, and e_to_s with a 0
+If n_east == 0 for id_rank==j+1, but n_east==1 for id_rank==j. fill e_to_s with a 1, and e_to_e with a 0
+If n_south==1 for id_rank==j+1 and id_rank==j, fill s_to_s with a 1, and s_to_e with a 0
+If n_south==0, for id_rank==j+1 but n_south==1 for id_rank=j fill s_to_e with a 1, and s_to_s with a 0
+
+```{r}
+##FidelityFxn_E<- function(){
+#for (i == 1 ) {
+  #for (id_rank == i+1 and id_rank == i), {ifelse (n_east==1, [is.na(turtles_yearbybeach$e_to_e)] <- 1, [is.na(turtles_yearbybeach$e_to_e)] <- 0)}
+#for (i=i+1)}
+#}
+
+
+FidelityFxn_E<- function(){
+  if (turtles_yearbybeach$id_rank == 1 && turtles_yearbybeach$id_rank == 2) {ifelse(turtles_yearbybeach$n_east==1, turtles_yearbybeach[is.na(turtles_yearbybeach$e_to_e)] <- 1, turtles_yearbybeach$e_to_e[is.na(turtles_yearbybeach$e_to_e)] <- 0)}
+}
+
+FidelityFxn_E()
+
+```
+
+```{r}
+str(turtles_yearbybeach)
+```
+
+```{r}
+i<-turtles_yearbybeach$id_rank
+```
+
+```{r}
+FidelityFxn<-function(){
+  for(unique_id in seq_along(turtles_yearbybeach)){
+    if(id_rank>1 && n_east==1) while((id_rank==1){n_east==1})
+      
+  }
+    
+
+#for (i in seq_along(turtles_yearbybeach)){
+ # turtles_yearbybeach[[i]]<-
+#}
+```
+
+```
+
+6. repeat for all turtles
+
+7. fill all remaining NAs with 0
+
+
+##Some plots 
+
+```{r}
+library(ggplot2)
+turtleplot<-ggplot(turtles_idbybeach,aes(unique_id,n_east))+geom_point()
+turtleplot
+```
+
+```{r}
+turtlesplot2<-ggplot(turtles_idbybeach,aes(unique_id,n_south))+geom_point()
+turtlesplot2
+```
+
+```{r}
+yearplot<-ggplot(turtles5,aes(group=unique_id)) + 
+          geom_bar(mapping = aes(x=year, y=n, fill=unique_id),stat="identity",position = "dodge")+labs(x="year",y="number of nests")+facet_grid(~beach)
+yearplot
+```
+
+
+
+##Logistic Regressions
+
+ Logistic regression is a type of GLM, that uses binary data. It models the odds of "success", which in this case is returning to the East beach.
+ 
+
+```{r}
+turtlesglm<-glm(n_east~unique_id, data=turtles_idbybeach,family = binomial(link = "logit"))
+summary(turtlesglm)
+anova(turtlesglm,test="Chisq")
+```
+
+
+```{r}
+turtlesglm2<-glm(n_east~unique_id*year, data=turtles_yearbybeach,family = binomial(link = "logit"))
+summary(turtlesglm2)
+anova(turtlesglm2,test="Chisq")
+```
+
+
+```{r}
+turtlesglm3<-glm(n_east~unique_id*year*mag_intensity, data=turtles_yearbybeach,family = binomial(link = "logit"))
+summary(turtlesglm3)
+anova(turtlesglm3,test="Chisq")
+```
+
+
+```{r}
+turtlesglm4<-glm(n_east~unique_id*year*mag_inclination, data=turtles_yearbybeach,family = binomial(link = "logit"))
+summary(turtlesglm4)
+anova(turtlesglm4,test="Chisq")
+```
+
+```{r}
+library(lme4)
+```
+
+```{r}
+turtlesglmer<-glmer(n_east~mag_intensity+mag_inclination+(1|unique_id/year), data=turtles_yearbybeach,family = binomial)
+summary(turtlesglmer)
+anova(turtlesglmer,test="Chisq")
+```
+
+
+
+##Within year/smaller subset models
+
+
+```{r}
+turtles_91to99 <- subset(turtles_yearbybeach, year<=1999, 
+select=year:e_to_e)
+count_91to99<-as.data.frame(count(turtles_91to99,year,n_east))
+```
+
+90s Nests- East vs south beach
+```{r}
+library(ggplot2)
+plot_91to99<-ggplot(count_91to99)+geom_bar(mapping = aes(x=year, y=n,fill=n_east),stat="identity",position = "fill")+scale_x_continuous(breaks=c(1991,1992,1993,1994,1995,1996,1997,1998,1999))+labs(x="year",y="number of nests")
+plot_91to99
+```
+
+
+
+```{r}
+mod_90s<-glm(n_south~unique_id*mag_intensity, data=turtles_91to99,family = binomial(link = "logit"))
+summary(mod_90s)
+anova(mod_90s,test="Chisq")
+```
+
+2000s Data East vs south beach
+```{r}
+turtles_2000s <- subset(turtles_yearbybeach, year>=2000, 
+select=year:e_to_e)
+count_2000s<-as.data.frame(count(turtles_2000s,year,n_east))
+```
+
+```{r}
+library(ggplot2)
+plot_2000s<-ggplot(count_2000s)+geom_bar(mapping = aes(x=year, y=n,fill=n_east),stat="identity",position = "fill")+scale_x_continuous(breaks=c(2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,2017))+labs(x="year",y="number of nests")
+plot_2000s
+```
+
+```{r}
+mod_2000s<-glm(n_east~unique_id*mag_intensity, data=turtles_2000s,family = binomial(link = "logit"))
+summary(mod_2000s)
+anova(mod_2000s,test="Chisq")
+```
+
+
+##Within year - Need transition columns
+```{r}
+turtles_1992 <- subset(turtles_yearbybeach, year==1992, 
+select=year:e_to_e)
+turtles_1992[1:5,]
+```
+
+
+```{r}
+mod_1992<-glm(n_east~unique_id, data=turtles_1992,family = binomial(link = "logit"))
+summary(mod_1992)
+anova(mod_1992,test="Chisq")
+```
+
+
+
+
+##Next steps:
+   - figure out how to fill in the beach transition columns, using code...I probably need a function...I haven't found a way that works yet
+   - run the models with these
+   -get finer scale magnetic field data - and use just the nests with lat&long coordinates to assess fidelity
+   -get tidal data - HYCOM or another source- maybe R has a tides package??
