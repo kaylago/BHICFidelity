@@ -251,6 +251,13 @@ turtlesmaster<-mutate(turtlesmaster,s_to_s=rep(NA))
 turtlesmaster<-mutate(turtlesmaster,e_to_e=rep(NA))
 ```
 
+use dplyr lag
+3lag(n_east)+n_east
+
+group_by(id)%>% mutate(col=3(lag(n_east)))+n_east
+ #################do this!!!!!
+
+
 2. identify when/where the first nest laid by a turtle is - works
 
 ```{r}
@@ -292,18 +299,14 @@ If n_south==0, for id_rank==j+1 but n_south==1 for id_rank=j fill s_to_e with a 
 ```{r}
 t2<-subset(turtlesmaster,unique_id=="2")
 t2$id_rank<-as.numeric(t2$id_rank)
-t2$e_to_s<-ifelse(t2$id_rank==2, t2$e_to_s[is.na(t2$e_to_s)]<-"1",t2$e_to_s[is.na(t2$e_to_s)]<-"0")
+t2$e_to_s<-ifelse(t2$id_rank==2&t2$n_east==0, t2$e_to_s[is.na(t2$e_to_s)]<-"1",t2$e_to_s[is.na(t2$e_to_s)]<-"0")
 i<-t2$id_rank
 ```
 
 
 ##Counters
 ```{r}
-
 write.csv(turtlesmaster,"BHICFidelityData.csv")
-
-
-
 ```
 
 ```{r}
